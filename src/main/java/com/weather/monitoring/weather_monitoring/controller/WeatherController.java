@@ -1,37 +1,78 @@
- package com.weather.monitoring.weather_monitoring.controller;
+package com.weather.monitoring.weather_monitoring.controller;
+
+import java.time.LocalDateTime;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.weather.monitoring.weather_monitoring.dto.WeatherResponse;
+import com.weather.monitoring.weather_monitoring.model.Weather;
+import com.weather.monitoring.weather_monitoring.repository.FavoriteCityRepository;
+import com.weather.monitoring.weather_monitoring.repository.WeatherRepository;
 import com.weather.monitoring.weather_monitoring.service.WeatherService;
-import com.fasterxml.jackson.databind.ObjectMapper; // Make sure to import this for JSON conversion
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-@RestController
-@RequestMapping("/weather")
+@Controller
 public class WeatherController {
     @Autowired
     private WeatherService weatherService;
 
     @Autowired
-    private ObjectMapper objectMapper; // Jackson ObjectMapper for converting JSON to Java objects
+    private ObjectMapper objectMapper;
 
-    @GetMapping("/{city}") // This allows for city names with spaces or special characters
-    public ResponseEntity<WeatherResponse> getWeather(@PathVariable String city) {
-        String weatherData = weatherService.getWeatherByCity(city);
-        
+    @Autowired
+    private WeatherRepository weatherRepository;
+
+    @Autowired
+    private FavoriteCityRepository favoriteCityRepository;
+    
+    @GetMapping("/")
+    public String showWeatherForm() {
+        return "weather";
+    }
+
+    @PostMapping("/weather")
+    public String getWeatherFromCityForm(@RequestParam("city") String city, Model model) {
+        if (city == null || city.trim().isEmpty()) {
+            model.addAttribute("error", "City name cannot be empty");
+            return "error";
+        }
+
+      
+
+  
         try {
-            // Convert JSON string to WeatherResponse object
-            WeatherResponse weatherResponse = objectMapper.readValue(weatherData, WeatherResponse.class);
-            return new ResponseEntity<>(weatherResponse, HttpStatus.OK);
+            String weatherData = weatherService.getWeatherByCity(city.trim());
+            JsonNode jsonNode = objectMapper.readTree(weatherData);
+            WeatherResponse weatherResponse = new WeatherResponse();
+            
+            weatherResponse.setCityName(jsonNode.get("name").asText());
+            weatherResponse.setWeatherDescription(jsonNode.get("weather").get(0).get("description").asText());
+            weatherResponse.setTemperature(jsonNode.get("main").get("temp").asDouble());
+            weatherResponse.setHumidity(jsonNode.get("main").get("humidity").asDouble());
+            weatherResponse.setWindSpeed(jsonNode.get("wind").get("speed").asDouble());
+         // Inside the getWeatherFromCityForm method
+            weatherResponse.setFeelsLike(jsonNode.get("main").get("feels_like").asDouble());
+            weatherResponse.setPressure(jsonNode.get("main").get("pressure").asDouble());
+            weatherResponse.setVisibility(jsonNode.get("visibility").asDouble());
+            
+            Weather weather = new Weather();
+            weather.setCity(city);
+            weather.setTemperature(String.valueOf(weatherResponse.getTemperature()));
+            weather.setHumidity(String.valueOf(weatherResponse.getHumidity()));
+            weather.setDateTime(LocalDateTime.now());
+            weatherRepository.save(weather);
+
+            model.addAttribute("weather", weatherResponse);
+            return "weatherDetails";
         } catch (Exception e) {
-            // Handle JSON parsing exception
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            model.addAttribute("error", "Unable to fetch weather details for " + city + ": " + e.getMessage());
+            return "error";
         }
     }
-}        
+}

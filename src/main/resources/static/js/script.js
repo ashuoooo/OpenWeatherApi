@@ -1,20 +1,32 @@
-document.getElementById('fetchWeatherBtn').addEventListener('click', function() {
+document.getElementById('fetchWeatherBtn').addEventListener('click', function () {
     const city = document.getElementById('cityInput').value;
-    fetch(`http://localhost:8080/weather/${city}`)
-        .then(response => response.json())
-        .then(data => {
-            displayWeather(data);
-        })
-        .catch(error => console.error('Error fetching weather data:', error));
+    
+    if (city) {
+        fetch(`/weather/${city}`)
+            .then(response => response.json())
+            .then(data => {
+                // Save data to localStorage
+                localStorage.setItem('weatherData', JSON.stringify(data));
+                // Redirect to weather.html
+                window.location.href = 'weather.html';
+            })
+            .catch(error => {
+                console.error('Error fetching weather data:', error);
+            });
+    } else {
+        alert('Please enter a city name');
+    }
 });
+window.addEventListener('DOMContentLoaded', function () {
+    const weatherData = JSON.parse(localStorage.getItem('weatherData'));
 
-function displayWeather(data) {
-    const weatherResult = document.getElementById('weatherResult');
-    weatherResult.innerHTML = `
-        <h2>Weather in ${data.name}</h2>
-        <p>Description: ${data.weather[0].description}</p>
-        <p>Temperature: ${(data.main.temp - 273.15).toFixed(2)} °C</p>
-        <p>Humidity: ${data.main.humidity}%</p>
-        <p>Wind Speed: ${data.wind.speed} m/s</p>
-    `;
-}
+    if (weatherData) {
+        document.getElementById('cityName').textContent = weatherData.cityName;
+        document.getElementById('weatherDescription').textContent = weatherData.weatherDescription;
+        document.getElementById('temperature').textContent = weatherData.temperature.toFixed(1);
+        document.getElementById('humidity').textContent = weatherData.humidity;
+        document.getElementById('windSpeed').textContent = weatherData.windSpeed;
+    } else {
+        alert('Weather data not found');
+    }
+});
